@@ -17,7 +17,7 @@ export interface LoanApplication {
   applicant: Applicant;
   stage: ApplicationStage;
   status: UnderwritingStatus;
-  riskScore: number; // 0 to 100
+  riskScore: number;
   automatedReasons: string[];
   submittedAt: string;
 }

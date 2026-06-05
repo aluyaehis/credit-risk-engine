@@ -1,6 +1,8 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import { LoanApplication, ApplicationStage } from '../../types/underwriting.ts';
-import { mockApplications } from '../../data/mockData';
+import { mockApplications } from '../../data/mockData.ts';
+import { ApplicationModal } from './ApplicationModal.tsx';
 
 const STAGES: { id: ApplicationStage; label: string }[] = [
   { id: 'verification', label: '1. KYC & Verification' },
@@ -10,13 +12,54 @@ const STAGES: { id: ApplicationStage; label: string }[] = [
 ];
 
 export const PipelineBoard: React.FC = () => {
-  const [applications] = React.useState<LoanApplication[]>(mockApplications);
+  const [applications, setApplications] = React.useState<LoanApplication[]>(mockApplications);
+  const [isProcessing, setIsProcessing] = React.useState(false);
+  const [selectedApp, setSelectedApp] = React.useState<LoanApplication | null>(null);
+
+  const runAutomationEngine = async () => {
+    if (isProcessing) return;
+    setIsProcessing(true);
+
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    setApplications((prev) =>
+      prev.map((app) => (app.id === 'APP-2026-001' ? { ...app, stage: 'credit_check' } : app))
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    setApplications((prev) =>
+      prev.map((app) => (app.id === 'APP-2026-001' ? { ...app, stage: 'risk_assessment' } : app))
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    setApplications((prev) =>
+      prev.map((app) =>
+        app.id === 'APP-2026-001'
+          ? { ...app, stage: 'decision', status: 'auto_approved' }
+          : app
+      )
+    );
+
+    setIsProcessing(false);
+  };
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h2 className="text-xl font-bold text-brand-dark">Automated Underwriting Pipeline</h2>
-        <p className="text-sm text-slate-500">Monitor real-time automated credit risk evaluations.</p>
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-brand-dark">Automated Underwriting Pipeline</h2>
+          <p className="text-sm text-slate-500">Monitor real-time automated credit risk evaluations.</p>
+        </div>
+        <button
+          onClick={runAutomationEngine}
+          disabled={isProcessing}
+          className={`px-5 py-2.5 rounded-lg font-semibold text-sm shadow-xs transition-all cursor-pointer ${
+            isProcessing
+              ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+              : 'bg-brand-accent text-white hover:bg-brand-accent/90'
+          }`}
+        >
+          {isProcessing ? 'Engine Executing Processes...' : 'Run Underwriting Engine'}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -24,8 +67,8 @@ export const PipelineBoard: React.FC = () => {
           const stageApps = applications.filter((app) => app.stage === stage.id);
 
           return (
-            <div 
-              key={stage.id} 
+            <div
+              key={stage.id}
               className="bg-slate-100/80 rounded-xl p-4 border border-slate-200/60 min-h-[500px] flex flex-col"
             >
               <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-200">
@@ -42,13 +85,23 @@ export const PipelineBoard: React.FC = () => {
                   </div>
                 ) : (
                   stageApps.map((app) => (
-                    <div 
-                      key={app.id} 
+                    /* MODIFICATION 1: Added onClick={() => setSelectedApp(app)} right here */
+                    <motion.div
+                      key={app.id}
+                      layoutId={app.id}
+                      onClick={() => setSelectedApp(app)}
+                      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                       className="bg-white p-4 rounded-xl shadow-xs border border-slate-200 hover:border-brand-accent transition-colors cursor-pointer"
                     >
                       <div className="flex justify-between items-start mb-2">
                         <span className="text-xs font-bold text-slate-400">{app.id}</span>
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded bg-amber-50 text-finance-amber border border-amber-200 uppercase tracking-wider">
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${
+                            app.status === 'auto_approved'
+                              ? 'bg-emerald-50 text-finance-green border-emerald-200'
+                              : 'bg-amber-50 text-finance-amber border-amber-200'
+                          }`}
+                        >
                           {app.status.replace('_', ' ')}
                         </span>
                       </div>
@@ -62,12 +115,12 @@ export const PipelineBoard: React.FC = () => {
                         </div>
                         <div className="flex justify-between">
                           <span>Credit Score:</span>
-                          <span className={`font-bold ${app.applicant.creditScore >= 600 ? 'text-finance-green' : 'text-finance-red'}`}>
+                          <span className="font-bold text-finance-green">
                             {app.applicant.creditScore}
                           </span>
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
                   ))
                 )}
               </div>
@@ -75,6 +128,12 @@ export const PipelineBoard: React.FC = () => {
           );
         })}
       </div>
+
+      {/* MODIFICATION 2: Added the physical Modal component injection at the base right here */}
+      <ApplicationModal 
+        application={selectedApp} 
+        onClose={() => setSelectedApp(null)} 
+      />
     </div>
   );
 };

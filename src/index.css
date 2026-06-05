@@ -1,12 +1,11 @@
 @import "tailwindcss";
 
 @theme {
-  /* Premium Corporate Banking Color Palette */
-  --color-brand-dark: #0f172a;      /* Deep Slate - Trust & Stability */
-  --color-brand-accent: #0284c7;    /* Sky Blue - Action items */
-  --color-finance-green: #059669;   /* Emerald - Automated Approvals */
-  --color-finance-red: #dc2626;     /* Red - Automated Rejections */
-  --color-finance-amber: #d97706;   /* Amber - Manual Review flags */
+  --color-brand-dark: #0f172a;    
+  --color-brand-accent: #0284c7;
+  --color-finance-green: #059669;
+  --color-finance-red: #dc2626;   
+  --color-finance-amber: #d97706;  
 }
 
 body {
