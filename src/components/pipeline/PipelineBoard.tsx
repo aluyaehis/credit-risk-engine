@@ -1,10 +1,10 @@
-// src/components/pipeline/PipelineBoard.tsx
 import React from 'react';
 import { motion } from 'framer-motion';
 import { LoanApplication, ApplicationStage } from '../../types/underwriting.ts';
 import { mockApplications } from '../../data/mockData.ts';
 import { ApplicationModal } from './ApplicationModal.tsx';
 import { PipelineMetrics } from './PipelineMetrics.tsx';
+import { RuleConfigPanel, EngineRules } from './RuleConfigPanel.tsx';
 
 const STAGES: { id: ApplicationStage; label: string }[] = [
   { id: 'verification', label: '1. KYC & Verification' },
@@ -18,51 +18,55 @@ export const PipelineBoard: React.FC = () => {
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [selectedApp, setSelectedApp] = React.useState<LoanApplication | null>(null);
 
+  const [rules, setRules] = React.useState<EngineRules>({
+    minCreditScore: 600,
+    maxDtiRatio: 45,
+    enableDtiCheck: true,
+  });
+
   const runAutomationEngine = async () => {
     if (isProcessing) return;
     setIsProcessing(true);
 
-    // --- STEP 1: Move all applications to Credit Check ---
     await new Promise((resolve) => setTimeout(resolve, 1500));
     setApplications((prev) =>
       prev.map((app) => ({ ...app, stage: 'credit_check' }))
     );
 
-    // --- STEP 2: Evaluate Credit Scores & Auto-Reject Low Scores ---
     await new Promise((resolve) => setTimeout(resolve, 1500));
     setApplications((prev) =>
       prev.map((app) => {
-        if (app.applicant.creditScore < 600) {
+        if (app.applicant.creditScore < rules.minCreditScore) {
           return { 
             ...app, 
             stage: 'decision', 
             status: 'auto_rejected',
-            automatedReasons: ['Credit Score below corporate minimum threshold of 600.']
+            automatedReasons: [`Credit Score below corporate minimum threshold of ${rules.minCreditScore}.`]
           };
         }
         return { ...app, stage: 'risk_assessment' };
       })
     );
 
-    // --- STEP 3: Evaluate Debt-to-Income on surviving accounts ---
     await new Promise((resolve) => setTimeout(resolve, 1500));
     setApplications((prev) =>
       prev.map((app) => {
         if (app.stage === 'decision') return app;
 
-        if (app.applicant.debtToIncomeRatio > 45) {
+        if (rules.enableDtiCheck && app.applicant.debtToIncomeRatio > rules.maxDtiRatio) {
           return {
             ...app,
             stage: 'decision',
             status: 'manual_review',
-            automatedReasons: ['DTI exceeds 45%. Requires officer verification of secondary cash flows.']
+            automatedReasons: [`DTI exceeds ${rules.maxDtiRatio}%. Requires officer verification of secondary cash flows.`]
           };
         }
 
         return {
           ...app,
           stage: 'decision',
-          status: 'auto_approved'
+          status: 'auto_approved',
+          automatedReasons: []
         };
       })
     );
@@ -91,6 +95,8 @@ export const PipelineBoard: React.FC = () => {
       </div>
 
       <PipelineMetrics applications={applications} />
+
+      <RuleConfigPanel rules={rules} onChange={setRules} />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {STAGES.map((stage) => {
@@ -149,7 +155,7 @@ export const PipelineBoard: React.FC = () => {
                         <div className="flex justify-between">
                           <span>Credit Score:</span>
                           <span className={`font-bold ${
-                            app.applicant.creditScore >= 600 ? 'text-finance-green' : 'text-finance-red'
+                            app.applicant.creditScore >= rules.minCreditScore ? 'text-finance-green' : 'text-finance-red'
                           }`}>
                             {app.applicant.creditScore}
                           </span>
@@ -167,6 +173,24 @@ export const PipelineBoard: React.FC = () => {
       <ApplicationModal 
         application={selectedApp} 
         onClose={() => setSelectedApp(null)} 
+        onUpdateStatus={(id, newStatus, resolutionReason) => {
+          setApplications((prev) =>
+            prev.map((app) =>
+              app.id === id
+                ? { 
+                    ...app, 
+                    status: newStatus,
+                    automatedReasons: resolutionReason ? [resolutionReason] : app.automatedReasons
+                  }
+                : app
+            )
+          );
+          setSelectedApp((prev) => prev ? { 
+            ...prev, 
+            status: newStatus,
+            automatedReasons: resolutionReason ? [resolutionReason] : prev.automatedReasons
+          } : null);
+        }}
       />
     </div>
   );
