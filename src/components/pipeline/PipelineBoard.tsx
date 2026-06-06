@@ -1,8 +1,10 @@
+// src/components/pipeline/PipelineBoard.tsx
 import React from 'react';
 import { motion } from 'framer-motion';
 import { LoanApplication, ApplicationStage } from '../../types/underwriting.ts';
 import { mockApplications } from '../../data/mockData.ts';
 import { ApplicationModal } from './ApplicationModal.tsx';
+import { PipelineMetrics } from './PipelineMetrics.tsx';
 
 const STAGES: { id: ApplicationStage; label: string }[] = [
   { id: 'verification', label: '1. KYC & Verification' },
@@ -20,23 +22,49 @@ export const PipelineBoard: React.FC = () => {
     if (isProcessing) return;
     setIsProcessing(true);
 
+    // --- STEP 1: Move all applications to Credit Check ---
     await new Promise((resolve) => setTimeout(resolve, 1500));
     setApplications((prev) =>
-      prev.map((app) => (app.id === 'APP-2026-001' ? { ...app, stage: 'credit_check' } : app))
+      prev.map((app) => ({ ...app, stage: 'credit_check' }))
     );
 
+    // --- STEP 2: Evaluate Credit Scores & Auto-Reject Low Scores ---
     await new Promise((resolve) => setTimeout(resolve, 1500));
     setApplications((prev) =>
-      prev.map((app) => (app.id === 'APP-2026-001' ? { ...app, stage: 'risk_assessment' } : app))
+      prev.map((app) => {
+        if (app.applicant.creditScore < 600) {
+          return { 
+            ...app, 
+            stage: 'decision', 
+            status: 'auto_rejected',
+            automatedReasons: ['Credit Score below corporate minimum threshold of 600.']
+          };
+        }
+        return { ...app, stage: 'risk_assessment' };
+      })
     );
 
+    // --- STEP 3: Evaluate Debt-to-Income on surviving accounts ---
     await new Promise((resolve) => setTimeout(resolve, 1500));
     setApplications((prev) =>
-      prev.map((app) =>
-        app.id === 'APP-2026-001'
-          ? { ...app, stage: 'decision', status: 'auto_approved' }
-          : app
-      )
+      prev.map((app) => {
+        if (app.stage === 'decision') return app;
+
+        if (app.applicant.debtToIncomeRatio > 45) {
+          return {
+            ...app,
+            stage: 'decision',
+            status: 'manual_review',
+            automatedReasons: ['DTI exceeds 45%. Requires officer verification of secondary cash flows.']
+          };
+        }
+
+        return {
+          ...app,
+          stage: 'decision',
+          status: 'auto_approved'
+        };
+      })
     );
 
     setIsProcessing(false);
@@ -62,6 +90,8 @@ export const PipelineBoard: React.FC = () => {
         </button>
       </div>
 
+      <PipelineMetrics applications={applications} />
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {STAGES.map((stage) => {
           const stageApps = applications.filter((app) => app.stage === stage.id);
@@ -85,7 +115,6 @@ export const PipelineBoard: React.FC = () => {
                   </div>
                 ) : (
                   stageApps.map((app) => (
-                    /* MODIFICATION 1: Added onClick={() => setSelectedApp(app)} right here */
                     <motion.div
                       key={app.id}
                       layoutId={app.id}
@@ -99,7 +128,11 @@ export const PipelineBoard: React.FC = () => {
                           className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${
                             app.status === 'auto_approved'
                               ? 'bg-emerald-50 text-finance-green border-emerald-200'
-                              : 'bg-amber-50 text-finance-amber border-amber-200'
+                              : app.status === 'auto_rejected'
+                              ? 'bg-red-50 text-finance-red border-red-200'
+                              : app.status === 'manual_review'
+                              ? 'bg-amber-50 text-finance-amber border-amber-200'
+                              : 'bg-slate-50 text-slate-500 border-slate-200'
                           }`}
                         >
                           {app.status.replace('_', ' ')}
@@ -115,7 +148,9 @@ export const PipelineBoard: React.FC = () => {
                         </div>
                         <div className="flex justify-between">
                           <span>Credit Score:</span>
-                          <span className="font-bold text-finance-green">
+                          <span className={`font-bold ${
+                            app.applicant.creditScore >= 600 ? 'text-finance-green' : 'text-finance-red'
+                          }`}>
                             {app.applicant.creditScore}
                           </span>
                         </div>
@@ -129,7 +164,6 @@ export const PipelineBoard: React.FC = () => {
         })}
       </div>
 
-      {/* MODIFICATION 2: Added the physical Modal component injection at the base right here */}
       <ApplicationModal 
         application={selectedApp} 
         onClose={() => setSelectedApp(null)} 
